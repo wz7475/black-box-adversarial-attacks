@@ -61,7 +61,8 @@ if __name__ == '__main__':
         with torch.no_grad():
             pred = torch.argmax(model(adv_tensor.to(device)), dim=1).item()
         print(f"Result - Success: {success}, Predicted: {pred}, Queries: {queries}, Iterations: {iterations}, Time: {elapsed:.2f}s")
-        logger.add_result(idx, label, pred, success, queries, iterations)
+        if success is not None:
+            logger.add_result(idx, label, pred, success, queries, iterations)
         # Save adversarial image
         adv_np = adv_tensor.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
         adv_img = (adv_np * 255).astype(np.uint8)
