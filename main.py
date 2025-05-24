@@ -4,8 +4,9 @@ import os
 import torch
 import numpy as np
 from models import MNISTModel, CIFARModel
-from attack import BasicGeneticAttack
+from attack import AdversarialAttack
 from utils import get_mnist_loaders, get_cifar_loaders, ResultLogger
+from optimizers import GeneticAlgOptimizer
 
 
 def load_model(args, device):
@@ -47,13 +48,16 @@ if __name__ == '__main__':
             break
         img, label = img.to(device), label.item()
         print(f"Attacking sample {idx}, true label: {label}")
-        attacker = BasicGeneticAttack(
+        attacker = AdversarialAttack(
             model=model,
-            pop_size=args.pop_size,
+            device=device,
             num_iters=args.num_iters,
-            eps=args.eps,
-            sigma=args.sigma,
-            device=device
+            optimizer_cls=GeneticAlgOptimizer,
+            optimizer_kwargs={
+                'pop_size': args.pop_size,
+                'eps': args.eps,
+                'sigma': args.sigma,
+            }
         )
         start = time.time()
         adv_tensor, success, queries, iterations = attacker.attack(img, label)
