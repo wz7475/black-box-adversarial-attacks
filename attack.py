@@ -11,6 +11,9 @@ class BasicGeneticAttack:
         self.sigma = sigma
         self.device = device
 
+    def objective_function(self, x):
+        pass
+
     def attack(self, input_tensor, true_label):
         """
         input_tensor: PyTorch tensor [1, C, H, W] with values in [0,1]
@@ -23,7 +26,8 @@ class BasicGeneticAttack:
             orig_output = self.model(input_tensor)
         orig_pred = torch.argmax(orig_output, dim=1).item()
         if orig_pred != true_label:
-            return input_tensor, True, 0, 0
+            # attack does not make sense, model misclassified original images
+            return input_tensor, None, 0, 0
 
         _, C, H, W = input_tensor.shape
         # Initialize population noise in [0,1]
@@ -33,18 +37,10 @@ class BasicGeneticAttack:
         for iteration in range(1, self.num_iters + 1):
             # Generate candidate tensors by converting noise to perturbations
             perturbations = (population * 2 - 1) * self.eps  # scale to [-eps, eps]
-            # Expand base image
-            base_img = input_tensor.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
-            candidates_np = []
-            for i in range(self.pop_size):
-                pert = perturbations[i].transpose(1,2,0)  # [H,W,C]
-                cand = np.clip(base_img + pert, 0.0, 1.0)
-                candidates_np.append(cand)
-            candidates_np = np.stack(candidates_np)  # [pop_size, H, W, C]
-            # Convert to tensor batch
-            batch = torch.from_numpy(candidates_np.transpose(0,3,1,2)).to(self.device).float()
+            populated_images = input_tensor.repeat(self.pop_size, 1, 1, 1)
+            perturbed_images = populated_images + torch.from_numpy(perturbations).to(self.device)
             with torch.no_grad():
-                outputs = self.model(batch)
+                outputs = self.model(perturbed_images)
                 probs = F.softmax(outputs, dim=1)
             queries += self.pop_size
             probs_np = probs.cpu().numpy()
@@ -54,7 +50,7 @@ class BasicGeneticAttack:
             success_idxs = np.where(preds != true_label)[0]
             if success_idxs.size > 0:
                 idx = success_idxs[0]
-                adv_tensor = batch[idx].unsqueeze(0)
+                adv_tensor = perturbed_images[idx].unsqueeze(0)
                 return adv_tensor, True, queries, iteration
             # Select best noise
             best_idx = np.argmax(fitness)
@@ -68,5 +64,5 @@ class BasicGeneticAttack:
             population = np.stack(new_pop)
         # Attack failed: return best candidate
         best_idx = np.argmax(fitness)
-        adv_tensor = batch[best_idx].unsqueeze(0)
+        adv_tensor = perturbed_images[best_idx].unsqueeze(0)
         return adv_tensor, False, queries, self.num_iters
