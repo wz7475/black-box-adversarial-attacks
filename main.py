@@ -25,11 +25,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, required=True, choices=['mnist', 'cifar10'])
     parser.add_argument('--test_size', type=int, default=10, help="Number of test samples to attack")
-    parser.add_argument('--eps', type=float, default=0.1)
+    parser.add_argument('--eps', type=float, default=0.01)
     parser.add_argument('--sigma', type=float, default=0.1)
     parser.add_argument('--pop_size', type=int, default=20)
     parser.add_argument('--num_iters', type=int, default=1000)
     parser.add_argument('--output_dir', type=str, default='output')
+    parser.add_argument("--alpha", type=float, default=10.0)
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -52,6 +53,7 @@ if __name__ == '__main__':
             model=model,
             device=device,
             num_iters=args.num_iters,
+            alpha=args.alpha,
             optimizer_cls=GeneticAlgOptimizer,
             optimizer_kwargs={
                 'pop_size': args.pop_size,

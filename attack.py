@@ -4,12 +4,13 @@ import torch.nn.functional as F
 
 
 class AdversarialAttack:
-    def __init__(self, model, device, num_iters, optimizer_cls, optimizer_kwargs):
+    def __init__(self, model, device, num_iters, optimizer_cls, alpha, optimizer_kwargs):
         self.model = model
         self.device = device
         self.optimizer_cls = optimizer_cls
         self.optimizer_kwargs = optimizer_kwargs
         self.num_iters = num_iters
+        self.alpha = alpha
 
     def _query_model(self, images: torch.Tensor) -> np.ndarray:
         with torch.no_grad():
@@ -23,11 +24,13 @@ class AdversarialAttack:
         perturbed_images = populated_images + torch.from_numpy(perturbations).to(self.device)
         return self._query_model(perturbed_images)
 
-    @staticmethod
-    def objective_function(probs: np.ndarray, true_label: int):
+    def objective_function(self, probs: np.ndarray, true_label: int, perturbations: np.ndarray) -> float:
         probs_for_true_label = probs[:, true_label]
         nll = -np.log(np.clip(probs_for_true_label, 1e-12, 1.0))
-        return nll
+        # high values of nll indicate that model probably misclassified sample
+        noise_regularization = np.sqrt(np.sum(perturbations ** 2, axis=(1,2,3)))
+        # high values of noise_reg indicate much noise added, visual change of image will be significant
+        return nll - self.alpha * noise_regularization
 
     def attack(self, input_tensor, true_label):
         """
@@ -50,7 +53,7 @@ class AdversarialAttack:
         for iteration in range(self.num_iters):
             perturbations = optimizer.ask()
             probs = self.query_model_with_perturbation(input_tensor, perturbations)
-            fitness = self.objective_function(probs, true_label)
+            fitness = self.objective_function(probs, true_label, perturbations)
             preds = np.argmax(probs, axis=1)
             queries += self.optimizer_kwargs['pop_size']
             success_idxs = np.where(preds != true_label)[0]
