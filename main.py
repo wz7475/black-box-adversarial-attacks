@@ -6,7 +6,7 @@ import numpy as np
 from models import MNISTModel, CIFARModel
 from attack import AdversarialAttack
 from utils import get_mnist_loaders, get_cifar_loaders, ResultLogger
-from optimizers import GeneticAlgOptimizer
+from optimizers import GeneticAlgOptimizer, CMAESOptimizer
 
 
 def load_model(args, device):
@@ -27,10 +27,11 @@ if __name__ == '__main__':
     parser.add_argument('--test_size', type=int, default=10, help="Number of test samples to attack")
     parser.add_argument('--eps', type=float, default=0.01)
     parser.add_argument('--sigma', type=float, default=0.1)
-    parser.add_argument('--pop_size', type=int, default=20)
+    parser.add_argument('--pop_size', type=int, default=2)
     parser.add_argument('--num_iters', type=int, default=1000)
     parser.add_argument('--output_dir', type=str, default='output')
     parser.add_argument("--alpha", type=float, default=10.0)
+    parser.add_argument("--optimizer", choices=["gen", "cmaes"], default="cmaes")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -44,6 +45,11 @@ if __name__ == '__main__':
     else:
         loader = get_cifar_loaders(batch_size=1)
 
+    if args.optimizer == 'cmaes':
+        optimizer_cls = CMAESOptimizer
+    elif args.optimizer == 'gen':
+        optimizer_cls = GeneticAlgOptimizer
+
     for idx, (img, label) in enumerate(loader):
         if idx >= args.test_size:
             break
@@ -54,7 +60,7 @@ if __name__ == '__main__':
             device=device,
             num_iters=args.num_iters,
             alpha=args.alpha,
-            optimizer_cls=GeneticAlgOptimizer,
+            optimizer_cls=optimizer_cls,
             optimizer_kwargs={
                 'pop_size': args.pop_size,
                 'eps': args.eps,

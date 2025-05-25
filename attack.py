@@ -1,10 +1,15 @@
+from typing import Type
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+from optimizers import AbstractOptimizer
+
 
 class AdversarialAttack:
-    def __init__(self, model, device, num_iters, optimizer_cls, alpha, optimizer_kwargs):
+    def __init__(self, model: torch.nn.Module, device: torch.device, num_iters: int, optimizer_cls: Type[AbstractOptimizer],
+                 alpha: float, optimizer_kwargs: dict):
         self.model = model
         self.device = device
         self.optimizer_cls = optimizer_cls
@@ -19,16 +24,16 @@ class AdversarialAttack:
         probs_np = probs.cpu().numpy()
         return probs_np
 
-    def query_model_with_perturbation(self, base_img: torch.Tensor, perturbations: np.ndarray,) -> np.ndarray:
+    def query_model_with_perturbation(self, base_img: torch.Tensor, perturbations: np.ndarray, ) -> np.ndarray:
         populated_images = base_img.repeat(self.optimizer_kwargs['pop_size'], 1, 1, 1)
-        perturbed_images = populated_images + torch.from_numpy(perturbations).to(self.device)
+        perturbed_images = populated_images + torch.from_numpy(perturbations).to(torch.float32).to(self.device)
         return self._query_model(perturbed_images)
 
     def objective_function(self, probs: np.ndarray, true_label: int, perturbations: np.ndarray) -> float:
         probs_for_true_label = probs[:, true_label]
         nll = -np.log(np.clip(probs_for_true_label, 1e-12, 1.0))
         # high values of nll indicate that model probably misclassified sample
-        noise_regularization = np.sqrt(np.sum(perturbations ** 2, axis=(1,2,3)))
+        noise_regularization = np.sqrt(np.sum(perturbations ** 2, axis=(1, 2, 3)))
         # high values of noise_reg indicate much noise added, visual change of image will be significant
         return nll - self.alpha * noise_regularization
 
@@ -62,10 +67,10 @@ class AdversarialAttack:
                 adv_tensor = torch.from_numpy(perturbations[idx]).unsqueeze(0) + input_tensor.cpu()
                 return adv_tensor, True, queries, iteration
             optimizer.tell(fitness)
+            # if iteration % 100 == 0:
+            print(f"iteration {iteration}, fitness {fitness}")
         # Attack failed: return best candidate
         perturbations = optimizer.ask()
         best_idx = np.argmax(fitness)
         adv_tensor = torch.from_numpy(perturbations[best_idx]).unsqueeze(0) + input_tensor.cpu()
         return adv_tensor, False, queries, self.optimizer_kwargs.get('num_iters', 1000)
-
-

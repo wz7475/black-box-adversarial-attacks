@@ -1,6 +1,7 @@
 from abc import ABC
 
 import numpy as np
+from cmaes import CMA
 
 
 class AbstractOptimizer(ABC):
@@ -35,3 +36,42 @@ class GeneticAlgOptimizer(AbstractOptimizer):
             noise = np.clip(noise, 0.0, 1.0)
             new_pop.append(noise)
         self.population = np.stack(new_pop)
+
+
+class CMAESOptimizer(AbstractOptimizer):
+    def __init__(self, pop_size, shape, eps, sigma, maximize=True):
+        self.pop_size = pop_size
+        self.shape = shape
+        self.eps = eps
+        self.sigma = sigma
+        self.n_dim = np.prod(shape)
+        self.maximize = maximize
+        # Set bounds to [-eps, eps] for each dimension
+        bounds = np.array([[-eps, eps]] * self.n_dim)
+        self.cma = CMA(
+            mean=np.zeros(self.n_dim, dtype=np.float32),
+            sigma=sigma,
+            bounds=bounds,
+            population_size=pop_size
+        )
+        self._last_candidates = None
+
+    def ask(self) -> np.ndarray:
+        # Ask for pop_size candidates, reshape to (pop_size, *shape)
+        candidates = []
+        for i in range(self.pop_size):
+            x = self.cma.ask()
+            candidates.append(x)
+            print(f"cma ask iteration {i}")
+        self._last_candidates = np.stack(candidates)
+        return self._last_candidates.reshape(self.pop_size, *self.shape)
+
+    def tell(self, candidates_scores: np.ndarray) -> None:
+        # Flatten candidates to (pop_size, n_dim)
+        if not self.maximize:
+            candidates_scores = -candidates_scores
+        solutions = [
+            (self._last_candidates[i], candidates_scores[i])
+            for i in range(self.pop_size)
+        ]
+        self.cma.tell(solutions)
