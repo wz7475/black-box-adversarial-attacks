@@ -68,7 +68,7 @@ class AdversarialAttack:
                 return adv_tensor, True, queries, iteration
             optimizer.tell(fitness)
             # if iteration % 100 == 0:
-            print(f"iteration {iteration}, fitness {fitness}")
+            #     print(f"iteration {iteration}, fitness {fitness}")
         # Attack failed: return best candidate
         perturbations = optimizer.ask()
         best_idx = np.argmax(fitness)

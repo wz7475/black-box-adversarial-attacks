@@ -6,7 +6,7 @@ import numpy as np
 from models import MNISTModel, CIFARModel
 from attack import AdversarialAttack
 from utils import get_mnist_loaders, get_cifar_loaders, ResultLogger
-from optimizers import GeneticAlgOptimizer, CMAESOptimizer
+from optimizers import GeneticAlgOptimizer, CMAESOptimizer, JADEOptimizer
 
 
 def load_model(args, device):
@@ -24,14 +24,18 @@ def load_model(args, device):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, required=True, choices=['mnist', 'cifar10'])
-    parser.add_argument('--test_size', type=int, default=10, help="Number of test samples to attack")
-    parser.add_argument('--eps', type=float, default=0.01)
+    parser.add_argument('--test_size', type=int, default=50, help="Number of test samples to attack")
+    parser.add_argument('--eps', type=float, default=0.1)
     parser.add_argument('--sigma', type=float, default=0.1)
-    parser.add_argument('--pop_size', type=int, default=2)
+    parser.add_argument('--pop_size', type=int, default=20)
     parser.add_argument('--num_iters', type=int, default=1000)
     parser.add_argument('--output_dir', type=str, default='output')
-    parser.add_argument("--alpha", type=float, default=10.0)
-    parser.add_argument("--optimizer", choices=["gen", "cmaes"], default="cmaes")
+    parser.add_argument("--alpha", type=float, default=10.0, help="coefficient for objective function")
+    parser.add_argument("--n_max_resampling", type=int, default=100)
+    parser.add_argument("--u_cr", type=float, default=0.1)
+    parser.add_argument("--u_cf", type=float, default=0.6)
+    parser.add_argument("--c", type=float, default=0.1)
+    parser.add_argument("--optimizer", choices=["gen", "cmaes", "jade"], default="jade")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -47,8 +51,28 @@ if __name__ == '__main__':
 
     if args.optimizer == 'cmaes':
         optimizer_cls = CMAESOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
+            'sigma': args.sigma,
+            'n_max_resampling': args.n_max_resampling,
+        }
     elif args.optimizer == 'gen':
         optimizer_cls = GeneticAlgOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
+            'sigma': args.sigma,
+        }
+    elif args.optimizer == 'jade':
+        optimizer_cls = JADEOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
+            'uCR': args.u_cr,
+            'uCF': args.u_cf,
+            'c': args.c,
+        }
 
     for idx, (img, label) in enumerate(loader):
         if idx >= args.test_size:
@@ -61,11 +85,7 @@ if __name__ == '__main__':
             num_iters=args.num_iters,
             alpha=args.alpha,
             optimizer_cls=optimizer_cls,
-            optimizer_kwargs={
-                'pop_size': args.pop_size,
-                'eps': args.eps,
-                'sigma': args.sigma,
-            }
+            optimizer_kwargs=optimizer_kwargs,
         )
         start = time.time()
         adv_tensor, success, queries, iterations = attacker.attack(img, label)
