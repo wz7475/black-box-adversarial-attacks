@@ -3,6 +3,7 @@
 make sure to have [uv installed](https://docs.astral.sh/uv/getting-started/installation/) and run
 ```shell
 uv sync
+uv build
 ```
 
 to run scripts

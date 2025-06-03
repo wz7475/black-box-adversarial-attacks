@@ -4,7 +4,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from amheattack.models import MNISTModel, CIFARModel
+from .models import MNISTModel, CIFARModel
 from utils import get_mnist_loaders, get_cifar_loaders
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

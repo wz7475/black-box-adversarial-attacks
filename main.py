@@ -45,9 +45,9 @@ if __name__ == '__main__':
 
     # Load appropriate test loader
     if args.model == 'mnist':
-        loader = get_mnist_loaders(batch_size=1)
+        loader, _ = get_mnist_loaders(batch_size=1)
     else:
-        loader = get_cifar_loaders(batch_size=1)
+        loader, _ = get_cifar_loaders(batch_size=1)
 
     if args.optimizer == 'cmaes':
         optimizer_cls = CMAESOptimizer
@@ -70,7 +70,7 @@ if __name__ == '__main__':
             'pop_size': args.pop_size,
             'eps': args.eps,
             'uCR': args.u_cr,
-            'uCF': args.u_cf,
+            'uF': args.u_cf,
             'c': args.c,
         }
 
