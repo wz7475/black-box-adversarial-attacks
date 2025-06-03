@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from optimizers import AbstractOptimizer
+from amheattack.optimizers import AbstractOptimizer
 
 
 class AdversarialAttack:

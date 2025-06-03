@@ -1,7 +1,7 @@
 from abc import ABC
 
 import numpy as np
-from cmaes import CMA
+from amheattack.cmaes import CMA
 
 
 class AbstractOptimizer(ABC):

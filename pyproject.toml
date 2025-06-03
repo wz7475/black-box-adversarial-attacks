@@ -1,5 +1,5 @@
 [project]
-name = "adversarial-genattack"
+name = "amheattack"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -11,3 +11,7 @@ dependencies = [
     "torch>=2.7.0",
     "torchvision>=0.22.0",
 ]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+

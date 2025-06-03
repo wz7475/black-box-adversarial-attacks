@@ -1,0 +1,94 @@
+started training...
+epoch 1/5
+Epoch 1/5, Test Accuracy: 0.8720
+epoch 2/5
+Epoch 2/5, Test Accuracy: 0.9381
+epoch 3/5
+Epoch 3/5, Test Accuracy: 0.9596
+epoch 4/5
+Epoch 4/5, Test Accuracy: 0.9730
+epoch 5/5
+Epoch 5/5, Test Accuracy: 0.9787
+Best Accuracy: 0.9787, Model saved to models/mnist.pth
+started training...
+epoch 1/40
+Epoch 1/40, Test Accuracy: 0.2571
+epoch 2/40
+Epoch 2/40, Test Accuracy: 0.3440
+epoch 3/40
+Epoch 3/40, Test Accuracy: 0.3961
+epoch 4/40
+Epoch 4/40, Test Accuracy: 0.4366
+epoch 5/40
+Epoch 5/40, Test Accuracy: 0.4766
+epoch 6/40
+Epoch 6/40, Test Accuracy: 0.4944
+epoch 7/40
+Epoch 7/40, Test Accuracy: 0.5248
+epoch 8/40
+Epoch 8/40, Test Accuracy: 0.5408
+epoch 9/40
+Epoch 9/40, Test Accuracy: 0.5577
+epoch 10/40
+Epoch 10/40, Test Accuracy: 0.5547
+epoch 11/40
+Epoch 11/40, Test Accuracy: 0.5814
+epoch 12/40
+Epoch 12/40, Test Accuracy: 0.5973
+epoch 13/40
+Epoch 13/40, Test Accuracy: 0.5785
+epoch 14/40
+Epoch 14/40, Test Accuracy: 0.6091
+epoch 15/40
+Epoch 15/40, Test Accuracy: 0.6215
+epoch 16/40
+Epoch 16/40, Test Accuracy: 0.6313
+epoch 17/40
+Epoch 17/40, Test Accuracy: 0.6380
+epoch 18/40
+Epoch 18/40, Test Accuracy: 0.6504
+epoch 19/40
+Epoch 19/40, Test Accuracy: 0.6597
+epoch 20/40
+Epoch 20/40, Test Accuracy: 0.6630
+epoch 21/40
+Epoch 21/40, Test Accuracy: 0.6688
+epoch 22/40
+Epoch 22/40, Test Accuracy: 0.6794
+epoch 23/40
+Epoch 23/40, Test Accuracy: 0.6750
+epoch 24/40
+Epoch 24/40, Test Accuracy: 0.6860
+epoch 25/40
+Epoch 25/40, Test Accuracy: 0.6821
+epoch 26/40
+Epoch 26/40, Test Accuracy: 0.6833
+epoch 27/40
+Epoch 27/40, Test Accuracy: 0.7015
+epoch 28/40
+Epoch 28/40, Test Accuracy: 0.6987
+epoch 29/40
+Epoch 29/40, Test Accuracy: 0.6890
+epoch 30/40
+Epoch 30/40, Test Accuracy: 0.7048
+epoch 31/40
+Epoch 31/40, Test Accuracy: 0.6793
+epoch 32/40
+Epoch 32/40, Test Accuracy: 0.6991
+epoch 33/40
+Epoch 33/40, Test Accuracy: 0.7029
+epoch 34/40
+Epoch 34/40, Test Accuracy: 0.7076
+epoch 35/40
+Epoch 35/40, Test Accuracy: 0.7040
+epoch 36/40
+Epoch 36/40, Test Accuracy: 0.7118
+epoch 37/40
+Epoch 37/40, Test Accuracy: 0.7173
+epoch 38/40
+Epoch 38/40, Test Accuracy: 0.7129
+epoch 39/40
+Epoch 39/40, Test Accuracy: 0.7053
+epoch 40/40
+Epoch 40/40, Test Accuracy: 0.6980
+Best Accuracy: 0.7173, Model saved to models/cifar.pth

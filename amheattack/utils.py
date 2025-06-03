@@ -24,8 +24,10 @@ def get_mnist_loaders(batch_size=1):
         transforms.ToTensor(),
     ])
     test_set = datasets.MNIST(root='data/mnist', train=False, download=True, transform=transform)
+    train_set = datasets.MNIST(root='data/mnist', train=True, download=True, transform=transform)
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
-    return test_loader
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
+    return train_loader, test_loader
 
 
 def get_cifar_loaders(batch_size=1):
@@ -34,4 +36,6 @@ def get_cifar_loaders(batch_size=1):
     ])
     test_set = datasets.CIFAR10(root='data/cifar', train=False, download=True, transform=transform)
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
-    return test_loader
+    train_set = datasets.CIFAR10(root='data/cifar', train=True, download=True, transform=transform)
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
+    return train_loader, test_loader

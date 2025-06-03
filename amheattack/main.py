@@ -3,10 +3,10 @@ import time
 import os
 import torch
 import numpy as np
-from models import MNISTModel, CIFARModel
-from attack import AdversarialAttack
-from utils import get_mnist_loaders, get_cifar_loaders, ResultLogger
-from optimizers import GeneticAlgOptimizer, CMAESOptimizer, JADEOptimizer
+from amheattack.models import MNISTModel, CIFARModel
+from amheattack.attack import AdversarialAttack
+from amheattack.utils import get_mnist_loaders, get_cifar_loaders, ResultLogger
+from amheattack.optimizers import GeneticAlgOptimizer, CMAESOptimizer, JADEOptimizer
 
 
 def load_model(args, device):
