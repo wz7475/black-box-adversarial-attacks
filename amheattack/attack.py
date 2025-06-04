@@ -65,6 +65,7 @@ class AdversarialAttack:
             if success_idxs.size > 0:
                 idx = success_idxs[0]
                 adv_tensor = torch.from_numpy(perturbations[idx]).unsqueeze(0) + input_tensor.cpu()
+                adv_tensor = adv_tensor.clip(0, 1)
                 best_obj_value = fitness[idx]
                 print(f"Success: best candidate objective function value = {best_obj_value}")
                 return adv_tensor, True, queries, best_obj_value

@@ -23,24 +23,19 @@ def load_model(args, device):
     return model
 
 def format_optimizer_subdir(optimizer_name, args, optimizer_kwargs):
-    # Always include optimizer name, eps, alpha, and all optimizer_kwargs
     parts = [optimizer_name]
-    # Add eps and alpha if present in args
     if hasattr(args, 'eps'):
         parts.append(f"eps_{args.eps}")
     if hasattr(args, 'alpha'):
         parts.append(f"alpha_{args.alpha}")
-    # Add all optimizer_kwargs
     for k, v in optimizer_kwargs.items():
         parts.append(f"{k}_{v}")
     return "_".join(parts)
 
 def get_class_name(label, dataset):
     if dataset == 'mnist':
-        # MNIST: digits 0-9
         return str(label)
     elif dataset == 'cifar10':
-        # CIFAR-10 class names
         cifar10_classes = [
             'airplane', 'automobile', 'bird', 'cat', 'deer',
             'dog', 'frog', 'horse', 'ship', 'truck'
@@ -51,17 +46,17 @@ def get_class_name(label, dataset):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, required=True, choices=['mnist', 'cifar10'])
-    parser.add_argument('--test_size', type=int, default=5, help="Number of test samples to attack")
-    parser.add_argument('--eps', type=float, default=0.01)
+    parser.add_argument('--model', type=str, choices=['mnist', 'cifar10'], default="cifar10")
+    parser.add_argument('--test_size', type=int, default=50, help="Number of test samples to attack")
+    parser.add_argument('--eps', type=float, default=0.1)
     parser.add_argument('--sigma', type=float, default=0.1)
-    parser.add_argument('--pop_size', type=int, default=20)
-    parser.add_argument('--num_iters', type=int, default=1000)
+    parser.add_argument('--pop_size', type=int, default=500)
+    parser.add_argument('--num_iters', type=int, default=500)
     parser.add_argument('--output_dir', type=str, default='output')
     parser.add_argument("--alpha", type=float, default=10.0, help="coefficient for objective function")
     parser.add_argument("--n_max_resampling", type=int, default=100)
-    parser.add_argument("--u_cr", type=float, default=0.1)
-    parser.add_argument("--u_cf", type=float, default=0.6)
+    parser.add_argument("--u_cr", type=float, default=0.2)
+    parser.add_argument("--u_cf", type=float, default=0.2)
     parser.add_argument("--c", type=float, default=0.1)
     parser.add_argument("--optimizer", choices=["gen", "cmaes", "jade"], default="jade")
     args = parser.parse_args()
@@ -70,11 +65,10 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = load_model(args, device)
 
-    # Load appropriate test loader
     if args.model == 'mnist':
-        loader, _ = get_mnist_loaders(batch_size=1)
+        _, loader = get_mnist_loaders(batch_size=1)
     else:
-        loader, _ = get_cifar_loaders(batch_size=1)
+        _, loader = get_cifar_loaders(batch_size=1)
 
     if args.optimizer == 'cmaes':
         optimizer_cls = CMAESOptimizer
@@ -101,7 +95,6 @@ if __name__ == '__main__':
             'c': args.c,
         }
 
-    # Compose subdirectory name for logging
     optimizer_subdir = format_optimizer_subdir(args.optimizer, args, optimizer_kwargs)
     full_output_dir = os.path.join(args.output_dir, optimizer_subdir)
     os.makedirs(full_output_dir, exist_ok=True)
@@ -124,7 +117,6 @@ if __name__ == '__main__':
         start = time.time()
         adv_tensor, success, queries, obj_value = attacker.attack(img, label)
         elapsed = time.time() - start
-        # Compute L2 distance
         l2_dist = torch.norm((adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1), p=2, dim=1).item()
         with torch.no_grad():
             pred = torch.argmax(model(adv_tensor.to(device)), dim=1).item()
@@ -132,7 +124,6 @@ if __name__ == '__main__':
         print(f"Result - Success: {success}, Predicted: {pred} ({pred_class_name}), Queries: {queries}, Time: {elapsed:.2f}s, L2: {l2_dist:.4f}, Obj: {obj_value}")
         if success is not None:
             logger.add_result(idx, label, pred, success, queries, l2_dist, obj_value)
-        # Save original image
         orig_np = img.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
         orig_img = (orig_np * 255).astype(np.uint8)
         mode = 'L' if args.model == 'mnist' else None
@@ -142,7 +133,6 @@ if __name__ == '__main__':
             orig_pil = Image.fromarray(orig_img)
         orig_pil.save(os.path.join(full_output_dir, f"orig_{args.model}_{idx}_{class_name}.png"))
         if success:
-            # Save adversarial image
             adv_np = adv_tensor.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
             adv_img = (adv_np * 255).astype(np.uint8)
             if mode:
@@ -150,5 +140,4 @@ if __name__ == '__main__':
             else:
                 img_pil = Image.fromarray(adv_img)
             img_pil.save(os.path.join(full_output_dir, f"adv_{args.model}_{idx}_{class_name}_to_{pred_class_name}.png"))
-    # After all runs, aggregate results
     aggregate_log_csv(full_output_dir)

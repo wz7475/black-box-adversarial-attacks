@@ -3,13 +3,7 @@ epoch 1/5
 Epoch 1/5, Test Accuracy: 0.8720
 epoch 2/5
 Epoch 2/5, Test Accuracy: 0.9381
-epoch 3/5
-Epoch 3/5, Test Accuracy: 0.9596
-epoch 4/5
-Epoch 4/5, Test Accuracy: 0.9730
-epoch 5/5
-Epoch 5/5, Test Accuracy: 0.9787
-Best Accuracy: 0.9787, Model saved to models/mnist.pth
+Best Accuracy: 0.9381, Model saved to models/mnist.pth
 started training...
 epoch 1/40
 Epoch 1/40, Test Accuracy: 0.2571
