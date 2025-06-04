@@ -3,9 +3,10 @@ import time
 import os
 import torch
 import numpy as np
+from PIL import Image
 from amheattack.models import MNISTModel, CIFARModel
 from amheattack.attack import AdversarialAttack
-from amheattack.utils import get_mnist_loaders, get_cifar_loaders, ResultLogger
+from amheattack.utils import get_mnist_loaders, get_cifar_loaders, ResultLogger, aggregate_log_csv
 from amheattack.optimizers import GeneticAlgOptimizer, CMAESOptimizer, JADEOptimizer
 
 
@@ -21,11 +22,38 @@ def load_model(args, device):
     model.eval()
     return model
 
+def format_optimizer_subdir(optimizer_name, args, optimizer_kwargs):
+    # Always include optimizer name, eps, alpha, and all optimizer_kwargs
+    parts = [optimizer_name]
+    # Add eps and alpha if present in args
+    if hasattr(args, 'eps'):
+        parts.append(f"eps_{args.eps}")
+    if hasattr(args, 'alpha'):
+        parts.append(f"alpha_{args.alpha}")
+    # Add all optimizer_kwargs
+    for k, v in optimizer_kwargs.items():
+        parts.append(f"{k}_{v}")
+    return "_".join(parts)
+
+def get_class_name(label, dataset):
+    if dataset == 'mnist':
+        # MNIST: digits 0-9
+        return str(label)
+    elif dataset == 'cifar10':
+        # CIFAR-10 class names
+        cifar10_classes = [
+            'airplane', 'automobile', 'bird', 'cat', 'deer',
+            'dog', 'frog', 'horse', 'ship', 'truck'
+        ]
+        return cifar10_classes[label]
+    else:
+        return str(label)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, required=True, choices=['mnist', 'cifar10'])
-    parser.add_argument('--test_size', type=int, default=50, help="Number of test samples to attack")
-    parser.add_argument('--eps', type=float, default=0.1)
+    parser.add_argument('--test_size', type=int, default=5, help="Number of test samples to attack")
+    parser.add_argument('--eps', type=float, default=0.01)
     parser.add_argument('--sigma', type=float, default=0.1)
     parser.add_argument('--pop_size', type=int, default=20)
     parser.add_argument('--num_iters', type=int, default=1000)
@@ -41,7 +69,6 @@ if __name__ == '__main__':
     os.makedirs(args.output_dir, exist_ok=True)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = load_model(args, device)
-    logger = ResultLogger(args.output_dir, vars(args))
 
     # Load appropriate test loader
     if args.model == 'mnist':
@@ -74,11 +101,18 @@ if __name__ == '__main__':
             'c': args.c,
         }
 
+    # Compose subdirectory name for logging
+    optimizer_subdir = format_optimizer_subdir(args.optimizer, args, optimizer_kwargs)
+    full_output_dir = os.path.join(args.output_dir, optimizer_subdir)
+    os.makedirs(full_output_dir, exist_ok=True)
+    logger = ResultLogger(full_output_dir, vars(args))
+
     for idx, (img, label) in enumerate(loader):
         if idx >= args.test_size:
             break
         img, label = img.to(device), label.item()
-        print(f"Attacking sample {idx}, true label: {label}")
+        class_name = get_class_name(label, args.model)
+        print(f"Attacking sample {idx}, true label: {label} ({class_name})")
         attacker = AdversarialAttack(
             model=model,
             device=device,
@@ -88,20 +122,33 @@ if __name__ == '__main__':
             optimizer_kwargs=optimizer_kwargs,
         )
         start = time.time()
-        adv_tensor, success, queries, iterations = attacker.attack(img, label)
+        adv_tensor, success, queries, obj_value = attacker.attack(img, label)
         elapsed = time.time() - start
+        # Compute L2 distance
+        l2_dist = torch.norm((adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1), p=2, dim=1).item()
         with torch.no_grad():
             pred = torch.argmax(model(adv_tensor.to(device)), dim=1).item()
-        print(f"Result - Success: {success}, Predicted: {pred}, Queries: {queries}, Iterations: {iterations}, Time: {elapsed:.2f}s")
+        pred_class_name = get_class_name(pred, args.model)
+        print(f"Result - Success: {success}, Predicted: {pred} ({pred_class_name}), Queries: {queries}, Time: {elapsed:.2f}s, L2: {l2_dist:.4f}, Obj: {obj_value}")
         if success is not None:
-            logger.add_result(idx, label, pred, success, queries, iterations)
-        # Save adversarial image
-        adv_np = adv_tensor.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
-        adv_img = (adv_np * 255).astype(np.uint8)
-        from PIL import Image
+            logger.add_result(idx, label, pred, success, queries, l2_dist, obj_value)
+        # Save original image
+        orig_np = img.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
+        orig_img = (orig_np * 255).astype(np.uint8)
         mode = 'L' if args.model == 'mnist' else None
         if mode:
-            img_pil = Image.fromarray(adv_img.squeeze(), mode)
+            orig_pil = Image.fromarray(orig_img.squeeze(), mode)
         else:
-            img_pil = Image.fromarray(adv_img)
-        img_pil.save(os.path.join(args.output_dir, f"adv_{args.model}_{idx}_{label}.png"))
+            orig_pil = Image.fromarray(orig_img)
+        orig_pil.save(os.path.join(full_output_dir, f"orig_{args.model}_{idx}_{class_name}.png"))
+        if success:
+            # Save adversarial image
+            adv_np = adv_tensor.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
+            adv_img = (adv_np * 255).astype(np.uint8)
+            if mode:
+                img_pil = Image.fromarray(adv_img.squeeze(), mode)
+            else:
+                img_pil = Image.fromarray(adv_img)
+            img_pil.save(os.path.join(full_output_dir, f"adv_{args.model}_{idx}_{class_name}_to_{pred_class_name}.png"))
+    # After all runs, aggregate results
+    aggregate_log_csv(full_output_dir)
