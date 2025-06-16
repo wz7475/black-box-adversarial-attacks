@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-for model in mnist cifar10; do
+for model in cifar10 mnist; do
   echo "Starting loop for model: $model"
   for eps in 0.01 0.1 0.2; do
     echo "  Starting loop for eps: $eps"

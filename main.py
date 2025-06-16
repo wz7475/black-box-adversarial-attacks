@@ -22,8 +22,8 @@ def load_model(args, device):
     model.eval()
     return model
 
-def format_optimizer_subdir(optimizer_name, args, optimizer_kwargs):
-    parts = [optimizer_name]
+def format_optimizer_subdir(optimizer_name, args, optimizer_kwargs, model_name: str):
+    parts = [model_name, optimizer_name]
     if hasattr(args, 'eps'):
         parts.append(f"eps_{args.eps}")
     if hasattr(args, 'alpha'):
@@ -95,7 +95,7 @@ if __name__ == '__main__':
             'c': args.c,
         }
 
-    optimizer_subdir = format_optimizer_subdir(args.optimizer, args, optimizer_kwargs)
+    optimizer_subdir = format_optimizer_subdir(args.optimizer, args, optimizer_kwargs, args.model)
     full_output_dir = os.path.join(args.output_dir, optimizer_subdir)
     os.makedirs(full_output_dir, exist_ok=True)
     logger = ResultLogger(full_output_dir, vars(args))
@@ -124,15 +124,15 @@ if __name__ == '__main__':
         print(f"Result - Success: {success}, Predicted: {pred} ({pred_class_name}), Queries: {queries}, Time: {elapsed:.2f}s, L2: {l2_dist:.4f}, Obj: {obj_value}")
         if success is not None:
             logger.add_result(idx, label, pred, success, queries, l2_dist, obj_value)
-        orig_np = img.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
-        orig_img = (orig_np * 255).astype(np.uint8)
-        mode = 'L' if args.model == 'mnist' else None
-        if mode:
-            orig_pil = Image.fromarray(orig_img.squeeze(), mode)
-        else:
-            orig_pil = Image.fromarray(orig_img)
-        orig_pil.save(os.path.join(full_output_dir, f"orig_{args.model}_{idx}_{class_name}.png"))
         if success:
+            orig_np = img.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
+            orig_img = (orig_np * 255).astype(np.uint8)
+            mode = 'L' if args.model == 'mnist' else None
+            if mode:
+                orig_pil = Image.fromarray(orig_img.squeeze(), mode)
+            else:
+                orig_pil = Image.fromarray(orig_img)
+            orig_pil.save(os.path.join(full_output_dir, f"orig_{args.model}_{idx}_{class_name}.png"))
             adv_np = adv_tensor.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
             adv_img = (adv_np * 255).astype(np.uint8)
             if mode:
