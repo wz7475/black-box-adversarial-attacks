@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 
 class ResultLogger:
-    def __init__(self, output_dir, args):
+    def __init__(self, output_dir, args, include_seed=False):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
         # Set up logging
@@ -25,17 +25,24 @@ class ResultLogger:
         with open(os.path.join(self.output_dir, 'args.txt'), 'w') as f:
             f.write(str(args))
         # CSV header
+        header = "idx,true_label,pred_label,success,queries,l2_dist,obj_value"
+        if include_seed:
+            header += ",seed"
         with open(os.path.join(self.output_dir, 'log.csv'), 'w') as f:
-            f.write("idx,true_label,pred_label,success,queries,l2_dist,obj_value\n")
+            f.write(header + "\n")
+        self.include_seed = include_seed
 
-    def add_result(self, idx, true_label, pred_label, success, queries, l2_dist, obj_value):
+    def add_result(self, idx, true_label, pred_label, success, queries, l2_dist, obj_value, seed=None):
         # Log to CSV
+        line = f"{idx},{true_label},{pred_label},{int(success)},{queries},{l2_dist},{obj_value}"
+        if self.include_seed and seed is not None:
+            line += f",{seed}"
         with open(os.path.join(self.output_dir, 'log.csv'), 'a') as f:
-            f.write(f"{idx},{true_label},{pred_label},{int(success)},{queries},{l2_dist},{obj_value}\n")
+            f.write(line + "\n")
         # Log info
         self.logger.info(
             f"idx={idx}, true_label={true_label}, pred_label={pred_label}, "
-            f"success={success}, queries={queries}, l2_dist={l2_dist:.4f}, obj_value={obj_value}"
+            f"success={success}, queries={queries}, l2_dist={l2_dist:.4f}, obj_value={obj_value}, seed={seed}"
         )
 
 
@@ -64,6 +71,7 @@ def get_cifar_loaders(batch_size=1):
 def aggregate_log_csv(output_dir):
     """
     Reads log.csv in output_dir, computes success_ratio, averages and stddevs, and writes aggregation.csv.
+    Handles optional 'seed' column.
     """
     log_path = os.path.join(output_dir, "log.csv")
     agg_path = os.path.join(output_dir, "aggregation.csv")
@@ -71,13 +79,23 @@ def aggregate_log_csv(output_dir):
     with open(log_path, newline='') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            row = {
-                'success': int(row['success']),
+            # Robust conversion for 'success'
+            success_val = row['success']
+            if success_val in ['True', 'true']:
+                success_int = 1
+            elif success_val in ['False', 'false']:
+                success_int = 0
+            else:
+                success_int = int(success_val)
+            r = {
+                'success': success_int,
                 'queries': int(row['queries']),
                 'l2_dist': float(row['l2_dist']),
                 'obj_value': float(row['obj_value'])
             }
-            rows.append(row)
+            if 'seed' in row:
+                r['seed'] = int(row['seed'])
+            rows.append(r)
     if not rows:
         # No data, write empty aggregation
         with open(agg_path, 'w') as f:

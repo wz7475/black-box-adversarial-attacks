@@ -1,0 +1,1 @@
+{'model': 'cifar10', 'test_size': 2, 'num_iters': 500, 'output_dir': 'output_stochastic', 'alpha': 0, 'seed': 1, 'repeat': 2}

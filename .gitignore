@@ -10,6 +10,8 @@ wheels/
 .venv
 data
 models
-output
+output*
+output_back
 .idea
 old_output
+*tar.gz

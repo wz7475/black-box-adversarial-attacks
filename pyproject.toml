@@ -5,12 +5,14 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "datasets>=4.0.0",
     "matplotlib>=3.10.3",
     "numpy>=2.2.6",
     "pillow>=11.2.1",
     "torch>=2.7.0",
     "torchvision>=0.22.0",
 ]
+packages = ["amheattack"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
