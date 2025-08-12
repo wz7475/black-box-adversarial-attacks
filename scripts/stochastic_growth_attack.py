@@ -37,6 +37,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, choices=['mnist', 'cifar10'], default="cifar10")
     parser.add_argument('--test_size', type=int, default=2)
+    parser.add_argument("--start_from_test_idx", type=int, default=0)
     parser.add_argument('--num_iters', type=int, default=500)
     parser.add_argument('--output_dir', type=str, default='output_stochastic')
     parser.add_argument("--alpha", type=float, default=0)
@@ -52,14 +53,20 @@ if __name__ == '__main__':
         _, loader = get_mnist_loaders(batch_size=1)
     else:
         _, loader = get_cifar_loaders(batch_size=1)
+    
+    starting_idx = args.start_from_test_idx
+    ending_idx = starting_idx + args.test_size
 
-    subdir = f"{args.model}_stochastic_alpha_{args.alpha}_num_img_{args.test_size}_iters_{args.num_iters}"
+
+    subdir = f"{args.model}_stochastic_alpha_{args.alpha}_test_img_{starting_idx}-{ending_idx}_iters_{args.num_iters}"
     full_output_dir = os.path.join(args.output_dir, subdir)
     os.makedirs(full_output_dir, exist_ok=True)
     logger = ResultLogger(full_output_dir, vars(args))
 
     for idx, (img, label) in enumerate(loader):
-        if idx >= args.test_size:
+        if idx < starting_idx:
+            continue
+        if idx >= ending_idx:
             break
         img, label = img.to(device), label.item()
         class_name = get_class_name(label, args.model)
