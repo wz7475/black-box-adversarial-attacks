@@ -7,7 +7,7 @@ from PIL import Image
 from amheattack.models import MNISTModel, CIFARModel
 from amheattack.attack import AdversarialAttack
 from amheattack.utils import get_mnist_loaders, get_cifar_loaders, ResultLogger, aggregate_log_csv
-from amheattack.optimizers import GeneticAlgOptimizer, CMAESOptimizer, JADEOptimizer
+from amheattack.optimizers import GeneticAlgOptimizer, JADEOptimizer
 
 
 def load_model(args, device):
@@ -46,19 +46,33 @@ def get_class_name(label, dataset):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    # attack context
     parser.add_argument('--model', type=str, choices=['mnist', 'cifar10'], default="cifar10")
     parser.add_argument('--test_size', type=int, default=50, help="Number of test samples to attack")
-    parser.add_argument('--eps', type=float, default=0.1)
-    parser.add_argument('--sigma', type=float, default=0.1)
-    parser.add_argument('--pop_size', type=int, default=500)
-    parser.add_argument('--num_iters', type=int, default=500)
     parser.add_argument('--output_dir', type=str, default='output')
+
+    # attack params
+    parser.add_argument('--eps', type=float, default=0.1, help="perturbation boundaries - passed to every optimizer")
+    parser.add_argument('--num_iters', type=int, default=500)
     parser.add_argument("--alpha", type=float, default=10.0, help="coefficient for objective function")
-    parser.add_argument("--n_max_resampling", type=int, default=100)
-    parser.add_argument("--u_cr", type=float, default=0.2)
-    parser.add_argument("--u_cf", type=float, default=0.2)
-    parser.add_argument("--c", type=float, default=0.1)
-    parser.add_argument("--optimizer", choices=["gen", "cmaes", "jade"], default="jade")
+
+    # shared params by optimizer
+    parser.add_argument('--pop_size', type=int, default=500)
+
+    # JADE params (mealpy DE.JADE)
+    parser.add_argument("--miu_f", type=float, default=0.5, help="JADE: initial adaptive f [0.4-0.6]")
+    parser.add_argument("--miu_cr", type=float, default=0.5, help="JADE: initial adaptive cr [0.4-0.6]")
+    parser.add_argument("--pt", type=float, default=0.1, help="JADE: percent of top best agents [0.05-0.2]")
+    parser.add_argument("--ap", type=float, default=0.1, help="JADE: adaptation parameter (c in paper) [0.05-0.2]")
+
+    # GA params (mealpy BaseGA mutation-only)
+    parser.add_argument("--pm", type=float, default=0.1, help="GA: mutation probability [0.01-0.2]")
+    parser.add_argument("--mutation", type=str, default="flip", choices=["flip", "swap"], help="GA: mutation strategy")
+    parser.add_argument("--mutation_multipoints", type=bool, default=True, help="GA: multipoint mutation")
+    parser.add_argument('--sigma', type=float, default=0.1)
+
+    # optimizer choice
+    parser.add_argument("--optimizer", choices=["gen", "jade"], default="jade")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -70,29 +84,25 @@ if __name__ == '__main__':
     else:
         _, loader = get_cifar_loaders(batch_size=1)
 
-    if args.optimizer == 'cmaes':
-        optimizer_cls = CMAESOptimizer
-        optimizer_kwargs = {
-            'pop_size': args.pop_size,
-            'eps': args.eps,
-            'sigma': args.sigma,
-            'n_max_resampling': args.n_max_resampling,
-        }
-    elif args.optimizer == 'gen':
+    if args.optimizer == 'gen':
         optimizer_cls = GeneticAlgOptimizer
         optimizer_kwargs = {
             'pop_size': args.pop_size,
             'eps': args.eps,
             'sigma': args.sigma,
+            'pm': args.pm,
+            'mutation': args.mutation,
+            'mutation_multipoints': args.mutation_multipoints,
         }
     elif args.optimizer == 'jade':
         optimizer_cls = JADEOptimizer
         optimizer_kwargs = {
             'pop_size': args.pop_size,
             'eps': args.eps,
-            'uCR': args.u_cr,
-            'uF': args.u_cf,
-            'c': args.c,
+            'miu_f': args.miu_f,
+            'miu_cr': args.miu_cr,
+            'pt': args.pt,
+            'ap': args.ap,
         }
 
     optimizer_subdir = format_optimizer_subdir(args.optimizer, args, optimizer_kwargs, args.model)
