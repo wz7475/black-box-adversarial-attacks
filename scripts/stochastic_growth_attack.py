@@ -87,7 +87,8 @@ if __name__ == '__main__':
             start = time.time()
             adv_tensor, success, queries, obj_value, hf_dataset = attacker.attack(img, label)
             elapsed = time.time() - start
-            l2_dist = torch.norm((adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1), p=2, dim=1).item()
+            diff = (adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1)
+            l2_dist = (torch.norm(diff, p=2, dim=1) / (diff.size(1) ** 0.5)).item()
             with torch.no_grad():
                 pred = torch.argmax(model(adv_tensor.to(device)), dim=1).item()
             pred_class_name = get_class_name(pred, args.model)
