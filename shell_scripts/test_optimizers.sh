@@ -7,10 +7,10 @@ set -e  # Exit on error
 
 # Test parameters
 NUM_ITERS=10
-TEST_SIZE=3
+TEST_SIZE=10
 MODEL="cifar10"
 OUTPUT_DIR="outputs_grouped/test_optimizers"
-POP_SIZE=20  # Small population for quick testing
+POP_SIZE=500  # Small population for quick testing
 EPS=0.1
 ALPHA=10.0
 
