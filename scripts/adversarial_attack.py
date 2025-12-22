@@ -7,7 +7,9 @@ from PIL import Image
 from amheattack.models import MNISTModel, CIFARModel
 from amheattack.attack import AdversarialAttack
 from amheattack.utils import get_mnist_loaders, get_cifar_loaders, ResultLogger, aggregate_log_csv
-from amheattack.optimizers import GeneticAlgOptimizer, JADEOptimizer
+from amheattack.optimizers import (GeneticAlgOptimizer, JADEOptimizer, DEOptimizer, 
+                                    SADEOptimizer, GWOOptimizer,
+                                    SHADEOptimizer, LSHADEOptimizer, INFOOptimizer)
 
 
 def load_model(args, device):
@@ -46,33 +48,57 @@ def get_class_name(label, dataset):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    # attack context
+    
+    # ============ Attack Context ============
     parser.add_argument('--model', type=str, choices=['mnist', 'cifar10'], default="cifar10")
     parser.add_argument('--test_size', type=int, default=50, help="Number of test samples to attack")
     parser.add_argument('--output_dir', type=str, default='output')
 
-    # attack params
-    parser.add_argument('--eps', type=float, default=0.1, help="perturbation boundaries - passed to every optimizer")
-    parser.add_argument('--num_iters', type=int, default=500)
-    parser.add_argument("--alpha", type=float, default=10.0, help="coefficient for objective function")
+    # ============ Attack Parameters ============
+    parser.add_argument('--eps', type=float, default=0.1, help="Perturbation boundaries - passed to every optimizer")
+    parser.add_argument('--num_iters', type=int, default=500, help="Number of optimization iterations")
+    parser.add_argument("--alpha", type=float, default=10.0, help="Coefficient for objective function (noise regularization)")
 
-    # shared params by optimizer
-    parser.add_argument('--pop_size', type=int, default=500)
+    # ============ Shared Optimizer Parameters ============
+    parser.add_argument('--pop_size', type=int, default=500, help="Population size for all optimizers")
 
-    # JADE params (mealpy DE.JADE)
-    parser.add_argument("--miu_f", type=float, default=0.5, help="JADE: initial adaptive f [0.4-0.6]")
-    parser.add_argument("--miu_cr", type=float, default=0.5, help="JADE: initial adaptive cr [0.4-0.6]")
-    parser.add_argument("--pt", type=float, default=0.1, help="JADE: percent of top best agents [0.05-0.2]")
-    parser.add_argument("--ap", type=float, default=0.1, help="JADE: adaptation parameter (c in paper) [0.05-0.2]")
-
-    # GA params (mealpy BaseGA mutation-only)
+    # ============ GA Parameters (Genetic Algorithm) ============
     parser.add_argument("--pm", type=float, default=0.1, help="GA: mutation probability [0.01-0.2]")
     parser.add_argument("--mutation", type=str, default="flip", choices=["flip", "swap"], help="GA: mutation strategy")
     parser.add_argument("--mutation_multipoints", type=bool, default=True, help="GA: multipoint mutation")
-    parser.add_argument('--sigma', type=float, default=0.1)
+    parser.add_argument('--sigma', type=float, default=0.1, help="GA: sigma parameter (not used in mealpy GA)")
 
-    # optimizer choice
-    parser.add_argument("--optimizer", choices=["gen", "jade"], default="jade")
+    # ============ JADE Parameters (Adaptive Differential Evolution) ============
+    parser.add_argument("--miu_f", type=float, default=0.5, help="JADE: initial adaptive F [0.4-0.6]")
+    parser.add_argument("--miu_cr", type=float, default=0.5, help="JADE: initial adaptive CR [0.4-0.6]")
+    parser.add_argument("--pt", type=float, default=0.1, help="JADE: percent of top best agents (p) [0.05-0.2]")
+    parser.add_argument("--ap", type=float, default=0.1, help="JADE: adaptation parameter (c) [0.05-0.2]")
+
+    # ============ DE Parameters (Classic Differential Evolution) ============
+    parser.add_argument("--wf", type=float, default=0.8, help="DE: weighting factor F [0.0-2.0]")
+    parser.add_argument("--cr", type=float, default=0.9, help="DE: crossover rate CR [0.0-1.0]")
+    parser.add_argument("--strategy", type=int, default=0, help="DE: strategy (0=rand/1, 1=best/1, 2=rand/2, 3=best/2, 4=current-to-best/1)")
+
+    # ============ SADE Parameters (Self-Adaptive DE) ============
+    # SADE auto-adapts F and CR, no additional parameters needed
+
+    # ============ GWO Parameters (Grey Wolf Optimizer) ============
+    # GWO uses default parameters, no additional tuning needed
+
+    # ============ SHADE Parameters (Success-History Adaptation DE) ============
+    parser.add_argument("--shade_miu_f", type=float, default=0.5, help="SHADE: initial weighting factor F [0.4-0.6]")
+    parser.add_argument("--shade_miu_cr", type=float, default=0.5, help="SHADE: initial cross-over probability CR [0.4-0.6]")
+
+    # ============ L-SHADE Parameters (Linear Population Size Reduction SHADE) ============
+    parser.add_argument("--lshade_miu_f", type=float, default=0.5, help="L-SHADE: initial weighting factor F [0.4-0.6]")
+    parser.add_argument("--lshade_miu_cr", type=float, default=0.5, help="L-SHADE: initial cross-over probability CR [0.4-0.6]")
+
+    # ============ INFO Parameters (weIghted meaN oF vectOrs) ============
+    # INFO uses default parameters, no additional tuning needed
+
+    # ============ Optimizer Choice ============
+    parser.add_argument("--optimizer", choices=["gen", "jade", "de", "sade", "sapde", "gwo", "shade", "lshade", "info"], default="jade",
+                        help="Optimizer: gen=GA, jade=JADE, de=OriginalDE, sade=SADE, sapde=SAP_DE, gwo=GWO, shade=SHADE, lshade=L-SHADE, info=INFO")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -103,6 +129,49 @@ if __name__ == '__main__':
             'miu_cr': args.miu_cr,
             'pt': args.pt,
             'ap': args.ap,
+        }
+    elif args.optimizer == 'de':
+        optimizer_cls = DEOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
+            'wf': args.wf,
+            'cr': args.cr,
+            'strategy': args.strategy,
+        }
+    elif args.optimizer == 'sade':
+        optimizer_cls = SADEOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
+        }
+    elif args.optimizer == 'gwo':
+        optimizer_cls = GWOOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
+        }
+    elif args.optimizer == 'shade':
+        optimizer_cls = SHADEOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
+            'miu_f': args.shade_miu_f,
+            'miu_cr': args.shade_miu_cr,
+        }
+    elif args.optimizer == 'lshade':
+        optimizer_cls = LSHADEOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
+            'miu_f': args.lshade_miu_f,
+            'miu_cr': args.lshade_miu_cr,
+        }
+    elif args.optimizer == 'info':
+        optimizer_cls = INFOOptimizer
+        optimizer_kwargs = {
+            'pop_size': args.pop_size,
+            'eps': args.eps,
         }
 
     optimizer_subdir = format_optimizer_subdir(args.optimizer, args, optimizer_kwargs, args.model)
