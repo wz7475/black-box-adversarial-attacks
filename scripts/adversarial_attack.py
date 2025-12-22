@@ -127,7 +127,9 @@ if __name__ == '__main__':
         start = time.time()
         adv_tensor, success, queries, obj_value = attacker.attack(img, label)
         elapsed = time.time() - start
-        l2_dist = torch.norm((adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1), p=2, dim=1).item()
+        # l2_dist = torch.norm((adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1), p=2, dim=1).item()
+        diff = (adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1)
+        l2_dist = (torch.norm(diff, p=2, dim=1) / (diff.size(1) ** 0.5)).item()
         with torch.no_grad():
             pred = torch.argmax(model(adv_tensor.to(device)), dim=1).item()
         pred_class_name = get_class_name(pred, args.model)
@@ -151,3 +153,16 @@ if __name__ == '__main__':
                 img_pil = Image.fromarray(adv_img)
             img_pil.save(os.path.join(full_output_dir, f"adv_{args.model}_{idx}_{class_name}_to_{pred_class_name}.png"))
     aggregate_log_csv(full_output_dir)
+    """
+    temp_output
+    └── cifar10_gen_eps_0.1_alpha_10.0_pop_size_500_eps_0.1_sigma_0.1_pm_0.1_mutation_flip_mutation_multipoints_True
+        ├── adv_cifar10_0_cat_to_dog.png
+        ├── adv_cifar10_2_ship_to_automobile.png
+        ├── args.txt
+        ├── log.csv     <-------------------- success, perturbation and pred classes for every attack (n+1 rows: header + n-attacks rows)
+        ├── aggregation.csv  <--------------- aggregation of logs.csv (2 rows: head + 1 data row)    
+        ├── orig_cifar10_0_cat.png
+        ├── orig_cifar10_2_ship.png
+        └── run.log
+    """
+
