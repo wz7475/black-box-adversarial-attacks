@@ -4,9 +4,9 @@
 logs_dir=${1:-"slurm_logs/grid_search"}
 CPUS_PER_TASK=${2:-16}
 MEM=${3:-"16G"}
-ACCOUNT=${4:-"plggolemml25-gpu-a100-gpu-a100"}
+ACCOUNT=${4:-"plggolemml25-gpu-a100"}
 PARTITION=${5:-"plgrid-gpu-a100"}
-JOB_TIME=${6:-"06:00:00"}
+JOB_TIME=${6:-"05:00:00"}
 
 # Create logs directory
 mkdir -p ${logs_dir}
@@ -19,9 +19,9 @@ optimizers=(gen jade de sade gwo shade lshade info)
 models=(cifar10)
 
 # Fixed parameters
-test_size=150
+test_size=100
 pop_size=500
-num_iters=500
+num_iters=300
 output_dir="output"
 
 
