@@ -14,6 +14,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "torch>=2.7.0",
     "torchvision>=0.22.0",
+    "transformers>=5.3.0",
 ]
 packages = ["amheattack"]
 [build-system]

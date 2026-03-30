@@ -18,3 +18,4 @@ old_output
 perturbation_images
 temp*
 slurm_logs
+.cache

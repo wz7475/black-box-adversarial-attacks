@@ -69,6 +69,7 @@ def merge_results(output_dir, output_file='merged_results.csv'):
     
     # Iterate through subdirectories
     for subdir in os.listdir(output_dir):
+        print(f"Processing subdirectory: {subdir}")
         subdir_path = os.path.join(output_dir, subdir)
         
         # Check if it's a directory

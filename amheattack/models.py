@@ -1,4 +1,6 @@
+import torch
 import torch.nn as nn
+import torchvision.transforms as transforms
 
 
 # MNIST CNN
@@ -52,4 +54,30 @@ class CIFARModel(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
         return x
+
+
+# HuggingFace ResNet wrapper (e.g. microsoft/resnet-18)
+class HFResNetModel(nn.Module):
+    """Wraps a HuggingFace AutoModelForImageClassification.
+
+    Accepts images as float tensors in [0, 1] and applies standard ImageNet
+    normalisation internally, so the attack code never needs to know about it.
+    After loading, ``model.id2label`` exposes the {int -> class-name} mapping.
+    """
+
+    IMAGENET_MEAN = [0.485, 0.456, 0.406]
+    IMAGENET_STD = [0.229, 0.224, 0.225]
+
+    def __init__(self, model_name: str = "microsoft/resnet-18"):
+        super().__init__()
+        from transformers import AutoModelForImageClassification
+        self._hf_model = AutoModelForImageClassification.from_pretrained(model_name)
+        self._normalize = transforms.Normalize(
+            mean=self.IMAGENET_MEAN, std=self.IMAGENET_STD
+        )
+        self.id2label: dict = dict(self._hf_model.config.id2label)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x: [B, C, H, W] float tensor in [0, 1]. Returns raw logits."""
+        return self._hf_model(self._normalize(x)).logits
 

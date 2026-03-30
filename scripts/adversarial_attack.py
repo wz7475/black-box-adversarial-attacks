@@ -4,9 +4,9 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from amheattack.models import MNISTModel, CIFARModel
+from amheattack.models import MNISTModel, CIFARModel, HFResNetModel
 from amheattack.attack import AdversarialAttack
-from amheattack.utils import get_mnist_loaders, get_cifar_loaders, ResultLogger, aggregate_log_csv
+from amheattack.utils import get_mnist_loaders, get_cifar_loaders, get_imagenet_loader, ResultLogger, aggregate_log_csv
 from amheattack.optimizers import (GeneticAlgOptimizer, JADEOptimizer, DEOptimizer, 
                                     SADEOptimizer, GWOOptimizer,
                                     SHADEOptimizer, LSHADEOptimizer, INFOOptimizer)
@@ -19,6 +19,8 @@ def load_model(args, device):
     elif args.model == 'cifar10':
         model = CIFARModel().to(device)
         model.load_state_dict(torch.load('models/cifar.pth', map_location=device))
+    elif args.model == 'imagenet':
+        model = HFResNetModel("microsoft/resnet-18").to(device)
     else:
         raise ValueError(f"Model {args.model} not supported")
     model.eval()
@@ -34,7 +36,7 @@ def format_optimizer_subdir(optimizer_name, args, optimizer_kwargs, model_name: 
         parts.append(f"{k}_{v}")
     return "_".join(parts)
 
-def get_class_name(label, dataset):
+def get_class_name(label, dataset, id2label=None):
     if dataset == 'mnist':
         return str(label)
     elif dataset == 'cifar10':
@@ -43,6 +45,10 @@ def get_class_name(label, dataset):
             'dog', 'frog', 'horse', 'ship', 'truck'
         ]
         return cifar10_classes[label]
+    elif dataset == 'imagenet':
+        if id2label is not None:
+            return id2label.get(label, str(label))
+        return str(label)
     else:
         return str(label)
 
@@ -50,7 +56,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
     # ============ Attack Context ============
-    parser.add_argument('--model', type=str, choices=['mnist', 'cifar10'], default="cifar10")
+    parser.add_argument('--model', type=str, choices=['mnist', 'cifar10', 'imagenet'], default="cifar10")
     parser.add_argument('--test_size', type=int, default=50, help="Number of test samples to attack")
     parser.add_argument('--output_dir', type=str, default='output')
 
@@ -107,8 +113,12 @@ if __name__ == '__main__':
 
     if args.model == 'mnist':
         _, loader = get_mnist_loaders(batch_size=1)
-    else:
+    elif args.model == 'cifar10':
         _, loader = get_cifar_loaders(batch_size=1)
+    else:  # imagenet
+        loader = get_imagenet_loader(batch_size=1, subset_size=args.test_size)
+
+    id2label = getattr(model, 'id2label', None)
 
     if args.optimizer == 'gen':
         optimizer_cls = GeneticAlgOptimizer
@@ -183,7 +193,7 @@ if __name__ == '__main__':
         if idx >= args.test_size:
             break
         img, label = img.to(device), label.item()
-        class_name = get_class_name(label, args.model)
+        class_name = get_class_name(label, args.model, id2label)
         print(f"Attacking sample {idx}, true label: {label} ({class_name})")
         attacker = AdversarialAttack(
             model=model,
@@ -201,7 +211,7 @@ if __name__ == '__main__':
         l2_dist = (torch.norm(diff, p=2, dim=1) / (diff.size(1) ** 0.5)).item()
         with torch.no_grad():
             pred = torch.argmax(model(adv_tensor.to(device)), dim=1).item()
-        pred_class_name = get_class_name(pred, args.model)
+        pred_class_name = get_class_name(pred, args.model, id2label)
         print(f"Result - Success: {success}, Predicted: {pred} ({pred_class_name}), Queries: {queries}, Time: {elapsed:.2f}s, L2: {l2_dist:.4f}, Obj: {obj_value}")
         if success is not None:
             logger.add_result(idx, label, pred, success, queries, l2_dist, obj_value)

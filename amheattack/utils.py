@@ -68,6 +68,45 @@ def get_cifar_loaders(batch_size=1):
     return train_loader, test_loader
 
 
+def get_imagenet_loader(batch_size: int = 1, start_idx: int = 0, subset_size: int = 50):
+    """Stream a contiguous slice [start_idx, start_idx + subset_size) from the
+    ImageNet-1k validation split (ILSVRC/imagenet-1k on HuggingFace).
+
+    Requires HuggingFace access to the gated ILSVRC/imagenet-1k dataset
+    (run ``huggingface-cli login`` or set HF_TOKEN beforehand).
+    """
+    from datasets import load_dataset
+    from torch.utils.data import Dataset as TorchDataset
+
+    preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+    ])
+
+    hf_ds = (
+        load_dataset("ILSVRC/imagenet-1k", split="validation", streaming=True)
+        .skip(start_idx)
+        .take(subset_size)
+    )
+
+    class _ImageNetSubset(TorchDataset):
+        def __init__(self, items):
+            self._items = items
+
+        def __len__(self):
+            return len(self._items)
+
+        def __getitem__(self, i):
+            item = self._items[i]
+            img = item["image"]
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            return preprocess(img), item["label"]
+
+    return DataLoader(_ImageNetSubset(list(hf_ds)), batch_size=batch_size, shuffle=False)
+
+
 def aggregate_log_csv(output_dir):
     """
     Reads log.csv in output_dir, computes success_ratio, averages and stddevs, and writes aggregation.csv.

@@ -4,9 +4,9 @@ import os
 import torch
 import numpy as np
 from PIL import Image
-from amheattack.models import MNISTModel, CIFARModel
+from amheattack.models import MNISTModel, CIFARModel, HFResNetModel
 from amheattack.stochastic_attack import StochasticGrowthAttack
-from amheattack.utils import get_mnist_loaders, get_cifar_loaders, ResultLogger, aggregate_log_csv
+from amheattack.utils import get_mnist_loaders, get_cifar_loaders, get_imagenet_loader, ResultLogger, aggregate_log_csv
 
 
 def load_model(args, device):
@@ -16,12 +16,14 @@ def load_model(args, device):
     elif args.model == 'cifar10':
         model = CIFARModel().to(device)
         model.load_state_dict(torch.load('models/cifar.pth', map_location=device))
+    elif args.model == 'imagenet':
+        model = HFResNetModel("microsoft/resnet-18").to(device)
     else:
         raise ValueError(f"Model {args.model} not supported")
     model.eval()
     return model
 
-def get_class_name(label, dataset):
+def get_class_name(label, dataset, id2label=None):
     if dataset == 'mnist':
         return str(label)
     elif dataset == 'cifar10':
@@ -30,17 +32,21 @@ def get_class_name(label, dataset):
             'dog', 'frog', 'horse', 'ship', 'truck'
         ]
         return cifar10_classes[label]
+    elif dataset == 'imagenet':
+        if id2label is not None:
+            return id2label.get(label, str(label))
+        return str(label)
     else:
         return str(label)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, choices=['mnist', 'cifar10'], default="cifar10")
+    parser.add_argument('--model', type=str, choices=['mnist', 'cifar10', 'imagenet'], default="cifar10")
     parser.add_argument('--test_size', type=int, default=2)
     parser.add_argument("--start_from_test_idx", type=int, default=0)
     parser.add_argument('--num_iters', type=int, default=500)
     parser.add_argument('--output_dir', type=str, default='output_stochastic')
-    parser.add_argument("--alpha", type=float, default=0)
+    parser.add_argument("--alpha", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--repeat", type=int, default=2, help="Number of times to repeat attack per image")
     args = parser.parse_args()
@@ -49,14 +55,24 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = load_model(args, device)
 
-    if args.model == 'mnist':
-        _, loader = get_mnist_loaders(batch_size=1)
-    else:
-        _, loader = get_cifar_loaders(batch_size=1)
-    
     starting_idx = args.start_from_test_idx
     ending_idx = starting_idx + args.test_size
 
+    if args.model == 'mnist':
+        _, loader = get_mnist_loaders(batch_size=1)
+    elif args.model == 'cifar10':
+        _, loader = get_cifar_loaders(batch_size=1)
+    else:  # imagenet — pre-slice to avoid downloading the full dataset
+        loader = get_imagenet_loader(
+            batch_size=1,
+            start_idx=starting_idx,
+            subset_size=args.test_size,
+        )
+
+    id2label = getattr(model, 'id2label', None)
+    # For imagenet the loader is already sliced; loop idx is relative (0-based).
+    # For mnist/cifar the loader contains the full dataset, so we use the raw idx.
+    idx_offset = starting_idx if args.model == 'imagenet' else 0
 
     subdir = f"{args.model}_stochastic_alpha_{args.alpha}_test_img_{starting_idx}-{ending_idx}_iters_{args.num_iters}"
     full_output_dir = os.path.join(args.output_dir, subdir)
@@ -64,14 +80,16 @@ if __name__ == '__main__':
     logger = ResultLogger(full_output_dir, vars(args))
 
     for idx, (img, label) in enumerate(loader):
-        if idx < starting_idx:
-            continue
-        if idx >= ending_idx:
-            break
+        if args.model != 'imagenet':
+            if idx < starting_idx:
+                continue
+            if idx >= ending_idx:
+                break
+        real_idx = idx + idx_offset
         img, label = img.to(device), label.item()
-        class_name = get_class_name(label, args.model)
-        print(f"StochasticGrowthAttack sample {idx}, true label: {label} ({class_name})")
-        img_dir = os.path.join(full_output_dir, f"img_{idx}")
+        class_name = get_class_name(label, args.model, id2label)
+        print(f"StochasticGrowthAttack sample {real_idx}, true label: {label} ({class_name})")
+        img_dir = os.path.join(full_output_dir, f"img_{real_idx}")
         os.makedirs(img_dir, exist_ok=True)
         all_logs = []
         all_hf_logs = []
@@ -91,11 +109,11 @@ if __name__ == '__main__':
             l2_dist = (torch.norm(diff, p=2, dim=1) / (diff.size(1) ** 0.5)).item()
             with torch.no_grad():
                 pred = torch.argmax(model(adv_tensor.to(device)), dim=1).item()
-            pred_class_name = get_class_name(pred, args.model)
+            pred_class_name = get_class_name(pred, args.model, id2label)
             print(f"Result - Success: {success}, Predicted: {pred} ({pred_class_name}), Queries: {queries}, Time: {elapsed:.2f}s, L2: {l2_dist:.4f}, Obj: {obj_value}")
             if success is not None:
                 all_logs.append({
-                    "idx": idx,
+                    "idx": real_idx,
                     "label": label,
                     "pred": pred,
                     "success": success,
@@ -112,14 +130,14 @@ if __name__ == '__main__':
                     orig_pil = Image.fromarray(orig_img.squeeze(), mode)
                 else:
                     orig_pil = Image.fromarray(orig_img)
-                orig_pil.save(os.path.join(img_dir, f"orig_{args.model}_{idx}_{class_name}_seed_{rep_seed}.png"))
+                orig_pil.save(os.path.join(img_dir, f"orig_{args.model}_{real_idx}_{class_name}_seed_{rep_seed}.png"))
                 adv_np = adv_tensor.cpu().numpy().transpose(0,2,3,1)[0]
                 adv_img = (adv_np * 255).astype(np.uint8)
                 if mode:
                     img_pil = Image.fromarray(adv_img.squeeze(), mode)
                 else:
                     img_pil = Image.fromarray(adv_img)
-                img_pil.save(os.path.join(img_dir, f"adv_{args.model}_{idx}_{class_name}_to_{pred_class_name}_seed_{rep_seed}.png"))
+                img_pil.save(os.path.join(img_dir, f"adv_{args.model}_{real_idx}_{class_name}_to_{pred_class_name}_seed_{rep_seed}.png"))
             # Collect HF logs for all repeats
             if hf_dataset is not None:
                 for entry in hf_dataset:
