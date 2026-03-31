@@ -6,7 +6,7 @@ CPUS_PER_TASK=${2:-16}
 MEM=${3:-"16G"}
 ACCOUNT=${4:-"plggolemml25-gpu-a100"}
 PARTITION=${5:-"plgrid-gpu-a100"}
-JOB_TIME=${6:-"05:00:00"}
+JOB_TIME=${6:-"10:00:00"}
 
 # Create logs directory
 mkdir -p ${logs_dir}
@@ -14,7 +14,7 @@ mkdir -p ${logs_dir}
 # Grid search parameters
 eps_values=(0.01 0.1 0.2)
 # alpha_values=(1 10 100)
-alpha_values=(0.1 0)
+alpha_values=(0.1 0 1 10 100)
 optimizers=(gen jade de sade gwo shade lshade info)
 # models=(mnist cifar10)
 models=(cifar10)
@@ -23,7 +23,7 @@ models=(cifar10)
 test_size=100
 pop_size=500
 num_iters=300
-output_dir="outputs_grouped/benchmark_new_runs"
+output_dir="outputs_grouped/benchmark_cifar_v2_20250330"
 
 # Calculate total number of array tasks
 n_models=${#models[@]}

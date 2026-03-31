@@ -204,17 +204,27 @@ if __name__ == '__main__':
             optimizer_kwargs=optimizer_kwargs,
         )
         start = time.time()
-        adv_tensor, success, queries, obj_value = attacker.attack(img, label)
+        adv_tensor, success, queries, obj_value, first_success_tensor, first_success_queries, first_success_obj = attacker.attack(img, label)
         elapsed = time.time() - start
         # l2_dist = torch.norm((adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1), p=2, dim=1).item()
         diff = (adv_tensor.cpu() - img.cpu()).view(adv_tensor.size(0), -1)
         l2_dist = (torch.norm(diff, p=2, dim=1) / (diff.size(1) ** 0.5)).item()
+        if first_success_tensor is not None:
+            first_diff = (first_success_tensor.cpu() - img.cpu()).view(first_success_tensor.size(0), -1)
+            first_success_l2 = (torch.norm(first_diff, p=2, dim=1) / (first_diff.size(1) ** 0.5)).item()
+        else:
+            first_success_l2 = None
         with torch.no_grad():
             pred = torch.argmax(model(adv_tensor.to(device)), dim=1).item()
         pred_class_name = get_class_name(pred, args.model, id2label)
         print(f"Result - Success: {success}, Predicted: {pred} ({pred_class_name}), Queries: {queries}, Time: {elapsed:.2f}s, L2: {l2_dist:.4f}, Obj: {obj_value}")
+        if first_success_queries is not None:
+            print(f"  First success: queries={first_success_queries}, l2={first_success_l2:.4f}, obj={first_success_obj:.4f}")
         if success is not None:
-            logger.add_result(idx, label, pred, success, queries, l2_dist, obj_value)
+            logger.add_result(idx, label, pred, success, queries, l2_dist, obj_value,
+                              first_success_queries=first_success_queries,
+                              first_success_l2=first_success_l2,
+                              first_success_obj=first_success_obj)
         if success:
             orig_np = img.cpu().numpy().transpose(0,2,3,1)[0]  # [H,W,C]
             orig_img = (orig_np * 255).astype(np.uint8)

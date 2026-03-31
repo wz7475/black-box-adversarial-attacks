@@ -41,7 +41,8 @@ class AdversarialAttack:
         """
         input_tensor: PyTorch tensor [1, C, H, W] with values in [0,1]
         true_label: int
-        Returns: adv_tensor (tensor), success (bool), queries (int), best_obj_value (float)
+        Returns: adv_tensor (best tensor), success (bool), total_queries (int), best_obj_value (float),
+                 first_success_tensor (tensor or None), first_success_queries (int or None), first_success_obj (float or None)
         """
         input_tensor = input_tensor.to(self.device)
         with torch.no_grad():
@@ -49,33 +50,55 @@ class AdversarialAttack:
         orig_pred = torch.argmax(orig_output, dim=1).item()
         if orig_pred != true_label:
             # attack does not make sense, model misclassified original images
-            return input_tensor, None, 0, None
+            return input_tensor, None, 0, None, None, None, None
 
         _, C, H, W = input_tensor.shape
         optimizer = self.optimizer_cls(**{**self.optimizer_kwargs, 'shape': (C, H, W)})
-        queries = 0
+        total_queries = 0
+
+        # Track first success
+        first_success_tensor = None
+        first_success_queries = None
+        first_success_obj = None
+
+        # Track best successful perturbation (highest objective among all successes)
+        best_success_tensor = None
+        best_success_obj = -np.inf
+
+        fitness = None
+        perturbations = None
 
         for _ in range(self.num_iters):
             perturbations = optimizer.ask()
             probs = self.query_model_with_perturbation(input_tensor, perturbations)
             fitness = self.objective_function(probs, true_label, perturbations)
             preds = np.argmax(probs, axis=1)
-            queries += self.optimizer_kwargs['pop_size']
+            total_queries += self.optimizer_kwargs['pop_size']
+
             success_idxs = np.where(preds != true_label)[0]
-            if success_idxs.size > 0:
-                idx = success_idxs[0]
-                adv_tensor = torch.from_numpy(perturbations[idx]).unsqueeze(0) + input_tensor.cpu()
-                adv_tensor = adv_tensor.clip(0, 1)
-                best_obj_value = fitness[idx]
-                print(f"Success: best candidate objective function value = {best_obj_value}")
-                return adv_tensor, True, queries, best_obj_value
+            for s_idx in success_idxs:
+                adv_t = (torch.from_numpy(perturbations[s_idx]).unsqueeze(0) + input_tensor.cpu()).clip(0, 1)
+                obj = float(fitness[s_idx])
+                if first_success_tensor is None:
+                    first_success_tensor = adv_t
+                    first_success_queries = total_queries
+                    first_success_obj = obj
+                    print(f"First success at query {total_queries}: obj={obj:.4f}")
+                if obj > best_success_obj:
+                    best_success_obj = obj
+                    best_success_tensor = adv_t
+
             optimizer.tell(fitness)
-            # if iteration % 100 == 0:
-            #     print(f"iteration {iteration}, fitness {fitness}")
-        # Attack failed: return best candidate
-        perturbations = optimizer.ask()
-        best_idx = np.argmax(fitness)
-        adv_tensor = torch.from_numpy(perturbations[best_idx]).unsqueeze(0) + input_tensor.cpu()
-        best_obj_value = fitness[best_idx]
-        print(f"Fail: best candidate objective function value = {best_obj_value}")
-        return adv_tensor, False, queries, best_obj_value
+
+        success = first_success_tensor is not None
+        if success:
+            print(f"Best success obj={best_success_obj:.4f}")
+            return best_success_tensor, True, total_queries, best_success_obj, first_success_tensor, first_success_queries, first_success_obj
+        else:
+            # Attack failed: return best candidate from final population
+            assert fitness is not None and perturbations is not None, "num_iters must be > 0"
+            best_idx = int(np.argmax(fitness))
+            adv_tensor = (torch.from_numpy(perturbations[best_idx]).unsqueeze(0) + input_tensor.cpu()).clip(0, 1)
+            best_obj_value = float(fitness[best_idx])
+            print(f"Fail: best candidate objective function value = {best_obj_value:.4f}")
+            return adv_tensor, False, total_queries, best_obj_value, None, None, None

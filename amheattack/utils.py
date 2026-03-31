@@ -25,16 +25,20 @@ class ResultLogger:
         with open(os.path.join(self.output_dir, 'args.txt'), 'w') as f:
             f.write(str(args))
         # CSV header
-        header = "idx,true_label,pred_label,success,queries,l2_dist,obj_value"
+        header = "idx,true_label,pred_label,success,queries,l2_dist,obj_value,first_success_queries,first_success_l2,first_success_obj"
         if include_seed:
             header += ",seed"
         with open(os.path.join(self.output_dir, 'log.csv'), 'w') as f:
             f.write(header + "\n")
         self.include_seed = include_seed
 
-    def add_result(self, idx, true_label, pred_label, success, queries, l2_dist, obj_value, seed=None):
+    def add_result(self, idx, true_label, pred_label, success, queries, l2_dist, obj_value,
+                   first_success_queries=None, first_success_l2=None, first_success_obj=None, seed=None):
         # Log to CSV
-        line = f"{idx},{true_label},{pred_label},{int(success)},{queries},{l2_dist},{obj_value}"
+        fs_q = first_success_queries if first_success_queries is not None else ""
+        fs_l2 = f"{first_success_l2}" if first_success_l2 is not None else ""
+        fs_obj = f"{first_success_obj}" if first_success_obj is not None else ""
+        line = f"{idx},{true_label},{pred_label},{int(success)},{queries},{l2_dist},{obj_value},{fs_q},{fs_l2},{fs_obj}"
         if self.include_seed and seed is not None:
             line += f",{seed}"
         with open(os.path.join(self.output_dir, 'log.csv'), 'a') as f:
@@ -42,7 +46,9 @@ class ResultLogger:
         # Log info
         self.logger.info(
             f"idx={idx}, true_label={true_label}, pred_label={pred_label}, "
-            f"success={success}, queries={queries}, l2_dist={l2_dist:.4f}, obj_value={obj_value}, seed={seed}"
+            f"success={success}, queries={queries}, l2_dist={l2_dist:.4f}, obj_value={obj_value}, "
+            f"first_success_queries={first_success_queries}, first_success_l2={first_success_l2}, "
+            f"first_success_obj={first_success_obj}, seed={seed}"
         )
 
 
@@ -130,7 +136,10 @@ def aggregate_log_csv(output_dir):
                 'success': success_int,
                 'queries': int(row['queries']),
                 'l2_dist': float(row['l2_dist']),
-                'obj_value': float(row['obj_value'])
+                'obj_value': float(row['obj_value']),
+                'first_success_queries': int(row['first_success_queries']) if row.get('first_success_queries', '') != '' else None,
+                'first_success_l2': float(row['first_success_l2']) if row.get('first_success_l2', '') != '' else None,
+                'first_success_obj': float(row['first_success_obj']) if row.get('first_success_obj', '') != '' else None,
             }
             if 'seed' in row:
                 r['seed'] = int(row['seed'])
@@ -138,8 +147,9 @@ def aggregate_log_csv(output_dir):
     if not rows:
         # No data, write empty aggregation
         with open(agg_path, 'w') as f:
-            f.write("success_ratio,avg_queries_success,std_queries_success,avg_l2_dist_success,std_l2_dist_success,avg_obj_value,std_obj_value\n")
-            f.write("0,0,0,0,0,0,0\n")
+            f.write("success_ratio,avg_queries_success,std_queries_success,avg_l2_dist_success,std_l2_dist_success,avg_obj_value,std_obj_value,"
+                    "avg_first_success_queries,std_first_success_queries,avg_first_success_l2,std_first_success_l2,avg_first_success_obj,std_first_success_obj\n")
+            f.write("0,0,0,0,0,0,0,0,0,0,0,0,0\n")
         return
 
     successes = [r for r in rows if r['success'] == 1]
@@ -153,12 +163,24 @@ def aggregate_log_csv(output_dir):
         std_queries_success = float(np.std([r['queries'] for r in successes]))
         avg_l2_dist_success = float(np.mean([r['l2_dist'] for r in successes]))
         std_l2_dist_success = float(np.std([r['l2_dist'] for r in successes]))
+        fs_rows = [r for r in successes if r['first_success_queries'] is not None]
+        avg_first_success_queries = float(np.mean([r['first_success_queries'] for r in fs_rows])) if fs_rows else 0.0
+        std_first_success_queries = float(np.std([r['first_success_queries'] for r in fs_rows])) if fs_rows else 0.0
+        avg_first_success_l2 = float(np.mean([r['first_success_l2'] for r in fs_rows])) if fs_rows else 0.0
+        std_first_success_l2 = float(np.std([r['first_success_l2'] for r in fs_rows])) if fs_rows else 0.0
+        avg_first_success_obj = float(np.mean([r['first_success_obj'] for r in fs_rows])) if fs_rows else 0.0
+        std_first_success_obj = float(np.std([r['first_success_obj'] for r in fs_rows])) if fs_rows else 0.0
     else:
         avg_queries_success = std_queries_success = avg_l2_dist_success = std_l2_dist_success = 0.0
+        avg_first_success_queries = std_first_success_queries = 0.0
+        avg_first_success_l2 = std_first_success_l2 = 0.0
+        avg_first_success_obj = std_first_success_obj = 0.0
 
     avg_obj_value = float(np.mean(all_obj)) if all_obj else 0.0
     std_obj_value = float(np.std(all_obj)) if all_obj else 0.0
 
     with open(agg_path, 'w') as f:
-        f.write("success_ratio,avg_queries_success,std_queries_success,avg_l2_dist_success,std_l2_dist_success,avg_obj_value,std_obj_value\n")
-        f.write(f"{success_ratio},{avg_queries_success},{std_queries_success},{avg_l2_dist_success},{std_l2_dist_success},{avg_obj_value},{std_obj_value}\n")
+        f.write("success_ratio,avg_queries_success,std_queries_success,avg_l2_dist_success,std_l2_dist_success,avg_obj_value,std_obj_value,"
+                "avg_first_success_queries,std_first_success_queries,avg_first_success_l2,std_first_success_l2,avg_first_success_obj,std_first_success_obj\n")
+        f.write(f"{success_ratio},{avg_queries_success},{std_queries_success},{avg_l2_dist_success},{std_l2_dist_success},{avg_obj_value},{std_obj_value},"
+                f"{avg_first_success_queries},{std_first_success_queries},{avg_first_success_l2},{std_first_success_l2},{avg_first_success_obj},{std_first_success_obj}\n")

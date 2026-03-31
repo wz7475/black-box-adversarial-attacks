@@ -6,7 +6,7 @@ CPUS_PER_TASK=${2:-16}
 MEM=${3:-"32G"}
 ACCOUNT=${4:-"plggolemml25-gpu-a100"}
 PARTITION=${5:-"plgrid-gpu-a100"}
-JOB_TIME=${6:-"05:00:00"}
+JOB_TIME=${6:-"30:00:00"}
 
 # Create logs directory
 mkdir -p ${logs_dir}
@@ -21,7 +21,7 @@ models=(imagenet)
 test_size=100
 pop_size=500
 num_iters=300
-output_dir="outputs_grouped/benchmark_imagenet"
+output_dir="outputs_grouped/benchmark_imagenet_v2_20250330"
 
 # Calculate total number of array tasks
 n_models=${#models[@]}
